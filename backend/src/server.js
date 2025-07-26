@@ -1,9 +1,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Conversation = require('./model/Conversation');
+const conversationRoutes = require('./routes/conversation_route');
 
 const app = express();
 app.use(express.json());
+app.use('/api', conversationRoutes);
 
 mongoose.connect('mongodb://localhost:27017/ecommerce_chatbot');
 
