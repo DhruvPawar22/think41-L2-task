@@ -1,16 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const Conversation = require('../model/Conversation');
+const axios = require('axios');
+const API_KEY = process.env.GROQ_API_KEY;
 
-// Dummy AI response function
-function getAIResponse(userMessage) {
-  return `AI response to: "${userMessage}"`;
+// AI response function
+async function getGroqResponse(messages) {
+  const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+    model: 'llama-3-8b-8192',
+    messages: messages
+  }, {
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  return response.data.choices[0].message.content;
 }
 
-// POST /api/chat - Send message, get AI response, persist both
+// POST /api/chat - Send message, get AI response
 router.post('/chat', async (req, res) => {
   const { userId, message, conversation_id } = req.body;
   let conversation;
+console.log(`Using Groq API Key: ${process.env.GROQ_API_KEY}`);
 
   if (conversation_id) {
     conversation = await Conversation.findById(conversation_id);
@@ -19,9 +31,19 @@ router.post('/chat', async (req, res) => {
     conversation = new Conversation({ userId, messages: [] });
   }
 
+  // Add user message to conversation
   conversation.messages.push({ sender: 'user', text: message, timestamp: new Date() });
 
-  const aiResponse = getAIResponse(message);
+  // Prepare messages for Groq (history + new message)
+  const groqMessages = conversation.messages.map(msg => ({
+    role: msg.sender === 'user' ? 'user' : 'assistant',
+    content: msg.text
+  }));
+
+  // Get AI response from Groq
+  const aiResponse = await getGroqResponse(groqMessages);
+
+  // Add AI response to conversation
   conversation.messages.push({ sender: 'ai', text: aiResponse, timestamp: new Date() });
 
   await conversation.save();
